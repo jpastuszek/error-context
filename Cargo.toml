@@ -1,0 +1,10 @@
+[package]
+name = "error-context"
+version = "0.1.0"
+authors = ["Jakub Pastuszek <jpastuszek@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+
+[dev-dependencies]
+assert_matches = "1.3.0"
