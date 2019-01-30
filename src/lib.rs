@@ -1,6 +1,6 @@
 use std::error::Error;
-use std::fmt::{self, Display};
 use std::fmt::Debug;
+use std::fmt::{self, Display};
 
 pub trait WithContext<C> {
     type ContextError;
@@ -10,16 +10,24 @@ pub trait WithContext<C> {
 pub trait ResultErrorWhile<C> {
     type ContextError;
     fn error_while(self, context: C) -> Self::ContextError;
-    fn error_while_with<F>(self, context: F) -> Self::ContextError where F: FnOnce() -> C;
-} 
+    fn error_while_with<F>(self, context: F) -> Self::ContextError
+    where
+        F: FnOnce() -> C;
+}
 
-impl<O, E, C> ResultErrorWhile<C> for Result<O, E> where E: WithContext<C, ContextError = E> {
+impl<O, E, C> ResultErrorWhile<C> for Result<O, E>
+where
+    E: WithContext<C, ContextError = E>,
+{
     type ContextError = Self;
     fn error_while(self, context: C) -> Self {
         self.map_err(|e| e.with_context(context))
     }
 
-    fn error_while_with<F>(self, context: F) -> Self::ContextError where F: FnOnce() -> C {
+    fn error_while_with<F>(self, context: F) -> Self::ContextError
+    where
+        F: FnOnce() -> C,
+    {
         self.map_err(|e| e.with_context(context()))
     }
 }
@@ -33,13 +41,19 @@ impl<E> RootCause<E> {
     }
 }
 
-impl<E> Display for RootCause<E> where E: Display {
+impl<E> Display for RootCause<E>
+where
+    E: Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl<E> Error for RootCause<E> where E: Error {
+impl<E> Error for RootCause<E>
+where
+    E: Error,
+{
     fn description(&self) -> &str {
         self.0.description()
     }
@@ -60,7 +74,7 @@ pub trait ToRootCause<T> {
     fn to_root_cause(self) -> RootCause<T>;
 }
 
-impl<T> ToRootCause<T> for T { 
+impl<T> ToRootCause<T> for T {
     fn to_root_cause(self) -> RootCause<Self> {
         RootCause(self)
     }
@@ -85,13 +99,21 @@ impl<E, C> ErrorContext<E, C> {
     }
 }
 
-impl<E, C> Display for ErrorContext<E, C> where E: Display, C: Display {
+impl<E, C> Display for ErrorContext<E, C>
+where
+    E: Display,
+    C: Display,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "while {} got error: {}", self.1, self.0)
     }
 }
 
-impl<E, C> Error for ErrorContext<E, C> where E: Error, C: Display + Debug {
+impl<E, C> Error for ErrorContext<E, C>
+where
+    E: Error,
+    C: Display + Debug,
+{
     fn description(&self) -> &str {
         self.0.description()
     }
@@ -113,7 +135,10 @@ pub trait WrapContext<C> {
     fn wrap_context(self, context: C) -> Self::ContextError;
 }
 
-impl<E, C> WrapContext<C> for E where E: Error {
+impl<E, C> WrapContext<C> for E
+where
+    E: Error,
+{
     type ContextError = ErrorContext<E, C>;
     fn wrap_context(self, context: C) -> ErrorContext<E, C> {
         ErrorContext(self, context)
@@ -122,15 +147,23 @@ impl<E, C> WrapContext<C> for E where E: Error {
 
 pub trait MapErrorContext<O, E, C> {
     fn map_error_context(self, context: C) -> Result<O, ErrorContext<E, C>>;
-    fn map_error_context_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>> where F: FnOnce() -> C;
+    fn map_error_context_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
+    where
+        F: FnOnce() -> C;
 }
 
-impl<O, E, C> MapErrorContext<O, E, C> for Result<O, E> where E: WrapContext<C, ContextError = ErrorContext<E, C>> {
+impl<O, E, C> MapErrorContext<O, E, C> for Result<O, E>
+where
+    E: WrapContext<C, ContextError = ErrorContext<E, C>>,
+{
     fn map_error_context(self, context: C) -> Result<O, ErrorContext<E, C>> {
         self.map_err(|e| e.wrap_context(context))
     }
 
-    fn map_error_context_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>> where F: FnOnce() -> C {
+    fn map_error_context_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
+    where
+        F: FnOnce() -> C,
+    {
         self.map_err(|e| e.wrap_context(context()))
     }
 }
@@ -165,12 +198,17 @@ mod tests {
         Bar { num: i32, ctx: Option<String> },
     }
 
-    impl WithContext<String> for FooError  {
+    impl WithContext<String> for FooError {
         type ContextError = Self;
         fn with_context(self, context: String) -> Self {
             match self {
-                FooError::Foo { .. } => FooError::Foo { context: Some(context) },
-                FooError::Bar { num, .. } => FooError::Bar { num, ctx: Some(context) },
+                FooError::Foo { .. } => FooError::Foo {
+                    context: Some(context),
+                },
+                FooError::Bar { num, .. } => FooError::Bar {
+                    num,
+                    ctx: Some(context),
+                },
             }
         }
     }
@@ -189,7 +227,12 @@ mod tests {
         use std::io::{Error, ErrorKind};
         let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "oh no!"));
 
-        assert_eq!(err.map_error_context("doing stuff".to_string()).unwrap_err().to_string(), "while doing stuff got error: oh no!");
+        assert_eq!(
+            err.map_error_context("doing stuff".to_string())
+                .unwrap_err()
+                .to_string(),
+            "while doing stuff got error: oh no!"
+        );
     }
 
     #[test]
@@ -197,7 +240,13 @@ mod tests {
         use std::io::{Error, ErrorKind};
         let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "file is no good"));
 
-        assert_eq!(err.map_error_context("opening file".to_string()).map_error_context("processing fish sticks".to_string()).unwrap_err().to_string(), "while processing fish sticks got error: while opening file got error: file is no good");
+        assert_eq!(
+            err.map_error_context("opening file".to_string())
+                .map_error_context("processing fish sticks".to_string())
+                .unwrap_err()
+                .to_string(),
+            "while processing fish sticks got error: while opening file got error: file is no good"
+        );
     }
 
     #[test]
@@ -210,6 +259,11 @@ mod tests {
             err.map_root_cause()
         });
 
-        assert_eq!(err.map_error_context("processing fish sticks".to_string()).unwrap_err().to_string(), "while processing fish sticks got error: while opening file got error: file is no good");
+        assert_eq!(
+            err.map_error_context("processing fish sticks".to_string())
+                .unwrap_err()
+                .to_string(),
+            "while processing fish sticks got error: while opening file got error: file is no good"
+        );
     }
 }
