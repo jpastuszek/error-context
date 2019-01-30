@@ -250,12 +250,21 @@ mod tests {
     }
 
     #[test]
-    fn test_in_context_of() {
+    fn test_in_context_of_type_context() {
+        let err = in_context_of("doing stuff".to_string(), || {
+            let err: Result<(), FooError> = Err(FooError::Foo { context: None });
+            err
+        });
+
+        assert_matches!(err.error_while("doing stuff".to_string()), Err(FooError::Foo { context: Some(c) }) => assert_eq!(c, "doing stuff".to_string()));
+    }
+
+    #[test]
+    fn test_in_context_of_wrapped_context() {
         use std::io::{Error, ErrorKind};
 
         let err = in_context_of("opening file".to_string(), || {
             let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "file is no good"));
-            //err.map_error_context("opening file".to_string())
             err.map_root_cause()
         });
 
