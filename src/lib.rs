@@ -20,7 +20,7 @@ impl<O, E, C> ResultErrorWhile<C> for Result<O, E> where E: WithContext<C, Conte
 }
 
 #[derive(Debug)]
-pub struct ErrorContext<E, C>(E, Option<C>);
+pub struct ErrorContext<E, C>(E, C);
 
 impl<E, C> ErrorContext<E, C> {
     pub fn unwrap(self) -> E {
@@ -30,11 +30,7 @@ impl<E, C> ErrorContext<E, C> {
 
 impl<E, C> Display for ErrorContext<E, C> where E: Display, C: Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(context) = &self.1 {
-            write!(f, "while {} got error: {}", context, self.0)
-        } else {
-            self.0.fmt(f)
-        }
+        write!(f, "while {} got error: {}", self.1, self.0)
     }
 }
 
@@ -48,33 +44,32 @@ impl<E, C> Error for ErrorContext<E, C> where E: Error, C: Display + Debug {
     }
 }
 
-impl<E, C> WithContext<C> for ErrorContext<E, C> {
-    type ContextError = ErrorContext<E, C>;
-    fn with_context(self, context: C) -> ErrorContext<E, C> {
-        ErrorContext(self.0, Some(context))
+impl<E, C, C2> WithContext<C2> for ErrorContext<E, C> {
+    type ContextError = ErrorContext<ErrorContext<E, C>, C2>;
+    fn with_context(self, context: C2) -> ErrorContext<ErrorContext<E, C>, C2> {
+        ErrorContext(self, context)
     }
 }
 
 pub trait WrapContext<C> {
     type ContextError;
-    fn wrap_context(self) -> Self::ContextError;
+    fn wrap_context(self, context: C) -> Self::ContextError;
 }
 
 impl<E, C> WrapContext<C> for E where E: Error {
     type ContextError = ErrorContext<E, C>;
-    fn wrap_context(self) -> ErrorContext<E, C> {
-        ErrorContext(self, None)
+    fn wrap_context(self, context: C) -> ErrorContext<E, C> {
+        ErrorContext(self, context)
     }
 }
 
 pub trait MapErrorContext<O, E, C> {
-    fn map_error_context(self) -> Result<O, ErrorContext<E, C>>;
+    fn map_error_context(self, context: C) -> Result<O, ErrorContext<E, C>>;
 }
 
-impl<O, E, C> MapErrorContext<O, E, C> for Result<O, E> where E: WrapContext<C> {
-    fn map_error_context(self) -> Result<O, ErrorContext<E, C>> {
-        // TODO: chain
-        self.map_err(|e| ErrorContext(e, None))
+impl<O, E, C> MapErrorContext<O, E, C> for Result<O, E> where E: WrapContext<C, ContextError = ErrorContext<E, C>> {
+    fn map_error_context(self, context: C) -> Result<O, ErrorContext<E, C>> {
+        self.map_err(|e| e.wrap_context(context))
     }
 }
 
@@ -113,6 +108,14 @@ mod tests {
         use std::io::{Error, ErrorKind};
         let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "oh no!"));
 
-        assert_eq!(err.map_error_context().error_while("doing stuff".to_string()).unwrap_err().to_string(), "while doing stuff got error: oh no!");
+        assert_eq!(err.map_error_context("doing stuff".to_string()).unwrap_err().to_string(), "while doing stuff got error: oh no!");
+    }
+
+    #[test]
+    fn test_wrapped_context_nested() {
+        use std::io::{Error, ErrorKind};
+        let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "file is no good"));
+
+        assert_eq!(err.map_error_context("opening file".to_string()).map_error_context("processing fish sticks".to_string()).unwrap_err().to_string(), "while processing fish sticks got error: while opening file got error: file is no good");
     }
 }
