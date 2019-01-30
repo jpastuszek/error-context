@@ -73,6 +73,26 @@ impl<O, E, C> MapErrorContext<O, E, C> for Result<O, E> where E: WrapContext<C, 
     }
 }
 
+/// Executes closure with with_context context
+pub fn in_context_of<O, E, C, CE, B>(context: C, body: B) -> Result<O, CE>
+where
+    E: WithContext<C, ContextError = CE>,
+    B: FnOnce() -> Result<O, E>,
+{
+    body().map_err(|e| e.with_context(context))
+}
+
+// /// Executes closure with problem_while_with context
+// pub fn in_context_of_with<O, F, M, B>(msg: F, body: B) -> Result<O, Problem>
+// where
+//     F: FnOnce() -> M,
+//     M: Display,
+//     B: FnOnce() -> Result<O, Problem>,
+// {
+//     body().problem_while_with(msg)
+// }
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,5 +137,17 @@ mod tests {
         let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "file is no good"));
 
         assert_eq!(err.map_error_context("opening file".to_string()).map_error_context("processing fish sticks".to_string()).unwrap_err().to_string(), "while processing fish sticks got error: while opening file got error: file is no good");
+    }
+
+    #[test]
+    fn test_in_context_of() {
+        use std::io::{Error, ErrorKind};
+
+        let err = in_context_of("processing fish sticks".to_string(), || {
+            let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "file is no good"));
+            err.map_error_context("opening file".to_string())
+        });
+
+        assert_eq!(err.unwrap_err().to_string(), "while processing fish sticks got error: while opening file got error: file is no good");
     }
 }
