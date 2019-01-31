@@ -146,8 +146,8 @@ where
 }
 
 pub trait ResultErrorWhileWrap<O, E, C> {
-    fn error_while(self, context: C) -> Result<O, ErrorContext<E, C>>;
-    fn error_while_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
+    fn wrap_error_while(self, context: C) -> Result<O, ErrorContext<E, C>>;
+    fn wrap_error_while_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
     where
         F: FnOnce() -> C;
 }
@@ -156,11 +156,11 @@ impl<O, E, C> ResultErrorWhileWrap<O, E, C> for Result<O, E>
 where
     E: WrapContext<C, ContextError = ErrorContext<E, C>>,
 {
-    fn error_while(self, context: C) -> Result<O, ErrorContext<E, C>> {
+    fn wrap_error_while(self, context: C) -> Result<O, ErrorContext<E, C>> {
         self.map_err(|e| e.wrap_context(context))
     }
 
-    fn error_while_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
+    fn wrap_error_while_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
     where
         F: FnOnce() -> C,
     {
@@ -228,7 +228,7 @@ mod tests {
         let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "oh no!"));
 
         assert_eq!(
-            err.error_while("doing stuff".to_string())
+            err.wrap_error_while("doing stuff".to_string())
                 .unwrap_err()
                 .to_string(),
             "while doing stuff got error: oh no!"
@@ -241,8 +241,8 @@ mod tests {
         let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "file is no good"));
 
         assert_eq!(
-            err.error_while("opening file".to_string())
-                .error_while("processing fish sticks".to_string())
+            err.wrap_error_while("opening file".to_string())
+                .wrap_error_while("processing fish sticks".to_string())
                 .unwrap_err()
                 .to_string(),
             "while processing fish sticks got error: while opening file got error: file is no good"
@@ -269,7 +269,7 @@ mod tests {
         });
 
         assert_eq!(
-            err.error_while("processing fish sticks".to_string())
+            err.wrap_error_while("processing fish sticks".to_string())
                 .unwrap_err()
                 .to_string(),
             "while processing fish sticks got error: while opening file got error: file is no good"
