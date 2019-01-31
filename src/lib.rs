@@ -33,9 +33,9 @@ where
 }
 
 #[derive(Debug)]
-pub struct RootCause<E>(pub E);
+pub struct ErrorNoContext<E>(pub E);
 
-impl<E> Display for RootCause<E>
+impl<E> Display for ErrorNoContext<E>
 where
     E: Display,
 {
@@ -44,7 +44,7 @@ where
     }
 }
 
-impl<E> Error for RootCause<E>
+impl<E> Error for ErrorNoContext<E>
 where
     E: Error,
 {
@@ -57,33 +57,33 @@ where
     }
 }
 
-impl<E, C> WithContext<C> for RootCause<E> {
-    type ContextError = ErrorContext<E>, C>;
-    fn with_context(self, context: C) -> ErrorContext<RootCause<E>, C> {
+impl<E, C> WithContext<C> for ErrorNoContext<E> {
+    type ContextError = ErrorContext<E, C>;
+    fn with_context(self, context: C) -> ErrorContext<E, C> {
         ErrorContext {
-            error: self,
+            error: self.0,
             context,
         }
     }
 }
 
-pub trait ToRootCause<T> {
-    fn to_root_cause(self) -> RootCause<T>;
+pub trait ToErrorNoContext<T> {
+    fn to_root_cause(self) -> ErrorNoContext<T>;
 }
 
-impl<T> ToRootCause<T> for T {
-    fn to_root_cause(self) -> RootCause<Self> {
-        RootCause(self)
+impl<T> ToErrorNoContext<T> for T {
+    fn to_root_cause(self) -> ErrorNoContext<Self> {
+        ErrorNoContext(self)
     }
 }
 
-pub trait MapRootCause<O, E> {
-    fn map_error_context(self) -> Result<O, RootCause<E>>;
+pub trait MapErrorNoContext<O, E> {
+    fn map_error_context(self) -> Result<O, ErrorNoContext<E>>;
 }
 
-impl<O, E> MapRootCause<O, E> for Result<O, E> {
-    fn map_error_context(self) -> Result<O, RootCause<E>> {
-        self.map_err(ToRootCause::to_root_cause)
+impl<O, E> MapErrorNoContext<O, E> for Result<O, E> {
+    fn map_error_context(self) -> Result<O, ErrorNoContext<E>> {
+        self.map_err(ToErrorNoContext::to_root_cause)
     }
 }
 
