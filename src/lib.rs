@@ -33,13 +33,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct RootCause<E>(E);
-
-impl<E> RootCause<E> {
-    pub fn unwrap(self) -> E {
-        self.0
-    }
-}
+pub struct RootCause<E>(pub E);
 
 impl<E> Display for RootCause<E>
 where
@@ -66,7 +60,10 @@ where
 impl<E, C> WithContext<C> for RootCause<E> {
     type ContextError = ErrorContext<RootCause<E>, C>;
     fn with_context(self, context: C) -> ErrorContext<RootCause<E>, C> {
-        ErrorContext(self, context)
+        ErrorContext {
+            error: self,
+            context,
+        }
     }
 }
 
@@ -91,12 +88,9 @@ impl<O, E> MapRootCause<O, E> for Result<O, E> {
 }
 
 #[derive(Debug)]
-pub struct ErrorContext<E, C>(E, C);
-
-impl<E, C> ErrorContext<E, C> {
-    pub fn unwrap(self) -> E {
-        self.0
-    }
+pub struct ErrorContext<E, C> {
+    error: E,
+    context: C,
 }
 
 impl<E, C> Display for ErrorContext<E, C>
@@ -105,7 +99,7 @@ where
     C: Display,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "while {} got error: {}", self.1, self.0)
+        write!(f, "while {} got error: {}", self.context, self.error)
     }
 }
 
@@ -115,18 +109,21 @@ where
     C: Display + Debug,
 {
     fn description(&self) -> &str {
-        self.0.description()
+        self.error.description()
     }
 
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.0.source()
+        self.error.source()
     }
 }
 
 impl<E, C, C2> WithContext<C2> for ErrorContext<E, C> {
     type ContextError = ErrorContext<ErrorContext<E, C>, C2>;
     fn with_context(self, context: C2) -> ErrorContext<ErrorContext<E, C>, C2> {
-        ErrorContext(self, context)
+        ErrorContext {
+            error: self, 
+            context,
+        } 
     }
 }
 
@@ -141,7 +138,10 @@ where
 {
     type ContextError = ErrorContext<E, C>;
     fn wrap_context(self, context: C) -> ErrorContext<E, C> {
-        ErrorContext(self, context)
+        ErrorContext {
+            error: self, 
+            context,
+        }
     }
 }
 
