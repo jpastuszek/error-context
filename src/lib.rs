@@ -58,7 +58,7 @@ where
 }
 
 impl<E, C> WithContext<C> for RootCause<E> {
-    type ContextError = ErrorContext<RootCause<E>, C>;
+    type ContextError = ErrorContext<E>, C>;
     fn with_context(self, context: C) -> ErrorContext<RootCause<E>, C> {
         ErrorContext {
             error: self,
