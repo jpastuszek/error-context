@@ -89,8 +89,8 @@ impl<O, E> MapRootCause<O, E> for Result<O, E> {
 
 #[derive(Debug)]
 pub struct ErrorContext<E, C> {
-    error: E,
-    context: C,
+    pub error: E,
+    pub context: C,
 }
 
 impl<E, C> Display for ErrorContext<E, C>
