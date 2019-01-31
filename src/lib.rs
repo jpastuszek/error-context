@@ -78,11 +78,11 @@ impl<T> ToRootCause<T> for T {
 }
 
 pub trait MapRootCause<O, E> {
-    fn map_root_cause(self) -> Result<O, RootCause<E>>;
+    fn map_error_context(self) -> Result<O, RootCause<E>>;
 }
 
 impl<O, E> MapRootCause<O, E> for Result<O, E> {
-    fn map_root_cause(self) -> Result<O, RootCause<E>> {
+    fn map_error_context(self) -> Result<O, RootCause<E>> {
         self.map_err(ToRootCause::to_root_cause)
     }
 }
@@ -145,22 +145,22 @@ where
     }
 }
 
-pub trait MapErrorContext<O, E, C> {
-    fn map_error_context(self, context: C) -> Result<O, ErrorContext<E, C>>;
-    fn map_error_context_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
+pub trait ResultErrorWhileWrap<O, E, C> {
+    fn error_while(self, context: C) -> Result<O, ErrorContext<E, C>>;
+    fn error_while_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
     where
         F: FnOnce() -> C;
 }
 
-impl<O, E, C> MapErrorContext<O, E, C> for Result<O, E>
+impl<O, E, C> ResultErrorWhileWrap<O, E, C> for Result<O, E>
 where
     E: WrapContext<C, ContextError = ErrorContext<E, C>>,
 {
-    fn map_error_context(self, context: C) -> Result<O, ErrorContext<E, C>> {
+    fn error_while(self, context: C) -> Result<O, ErrorContext<E, C>> {
         self.map_err(|e| e.wrap_context(context))
     }
 
-    fn map_error_context_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
+    fn error_while_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
     where
         F: FnOnce() -> C,
     {
@@ -228,7 +228,7 @@ mod tests {
         let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "oh no!"));
 
         assert_eq!(
-            err.map_error_context("doing stuff".to_string())
+            err.error_while("doing stuff".to_string())
                 .unwrap_err()
                 .to_string(),
             "while doing stuff got error: oh no!"
@@ -241,8 +241,8 @@ mod tests {
         let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "file is no good"));
 
         assert_eq!(
-            err.map_error_context("opening file".to_string())
-                .map_error_context("processing fish sticks".to_string())
+            err.error_while("opening file".to_string())
+                .error_while("processing fish sticks".to_string())
                 .unwrap_err()
                 .to_string(),
             "while processing fish sticks got error: while opening file got error: file is no good"
@@ -265,11 +265,11 @@ mod tests {
 
         let err = in_context_of("opening file".to_string(), || {
             let err: Result<(), Error> = Err(Error::new(ErrorKind::Other, "file is no good"));
-            err.map_root_cause()
+            err.map_error_context()
         });
 
         assert_eq!(
-            err.map_error_context("processing fish sticks".to_string())
+            err.error_while("processing fish sticks".to_string())
                 .unwrap_err()
                 .to_string(),
             "while processing fish sticks got error: while opening file got error: file is no good"
