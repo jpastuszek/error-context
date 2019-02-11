@@ -1,6 +1,19 @@
+/*!
+    * Use error context to provide information about wich good program path was taken that in the end lead to error,
+    * Don't add errors or error path information to context - this should be part of the error type, in particular its `Display` and `Error::source` implementation,
+    * Don't add arguments of function call you are rising error from to the context - this should be responsibility of the caller,
+ */
+
 use std::error::Error;
 use std::fmt::Debug;
 use std::fmt::{self, Display};
+
+pub mod prelude {
+    pub use crate::{
+        in_context_of, in_context_of_with, ErrorContext, ErrorNoContext, MapErrorNoContext,
+        ResultErrorWhile, ResultErrorWhileWrap, ToErrorNoContext, WithContext, WrapContext,
+    };
+}
 
 pub trait WithContext<C> {
     type ContextError;
@@ -121,9 +134,9 @@ impl<E, C, C2> WithContext<C2> for ErrorContext<E, C> {
     type ContextError = ErrorContext<ErrorContext<E, C>, C2>;
     fn with_context(self, context: C2) -> ErrorContext<ErrorContext<E, C>, C2> {
         ErrorContext {
-            error: self, 
+            error: self,
             context,
-        } 
+        }
     }
 }
 
@@ -132,14 +145,11 @@ pub trait WrapContext<C> {
     fn wrap_context(self, context: C) -> Self::ContextError;
 }
 
-impl<E, C> WrapContext<C> for E
-where
-    E: Error,
-{
+impl<E, C> WrapContext<C> for E {
     type ContextError = ErrorContext<E, C>;
     fn wrap_context(self, context: C) -> ErrorContext<E, C> {
         ErrorContext {
-            error: self, 
+            error: self,
             context,
         }
     }
