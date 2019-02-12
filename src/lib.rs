@@ -1,7 +1,11 @@
 /*!
-    * Use error context to provide information about wich good program path was taken that in the end lead to error,
-    * Don't add errors or error path information to context - this should be part of the error type, in particular its `Display` and `Error::source` implementation,
-    * Don't add arguments of function call you are rising error from to the context - this should be responsibility of the caller,
+ * Usage advice:
+ * * Use error context to provide information about which good program path was taken that lead to an error, e.g: "while parsing filed x of message type y".
+ * * Error context should provide detail to the end user who sees the error message and not be used to distinguish between two different errors by client - use sting types like `&'static str` as context type.
+ * * Don't add errors or error path information to context - this should be part of the error type, in particular its `Display` and `Error::source` implementation.
+ * * Don't add arguments of function call you are rising error from to the context - this should be responsibility of the caller - otherwise would be difficult to 
+ * avoid non-`'static` references or allocations on error path or avoid showing sensitive data to end user, e.g. SQL query text or passwords.
+ * * Don't put non-`'static` references to context or the error type cannot be propagated back easily or used as `Error::source`.
  */
 
 use std::error::Error;
@@ -187,7 +191,7 @@ where
     body().map_err(|e| e.with_context(context))
 }
 
-/// Executes closure with with_context context function called on Err wariant
+/// Executes closure with with_context context function called on Err variant
 pub fn in_context_of_with<O, E, C, CE, F, M, B>(context: F, body: B) -> Result<O, CE>
 where
     F: FnOnce() -> C,
