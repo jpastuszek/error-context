@@ -1,12 +1,94 @@
 /*!
- * Usage advice:
- * * Use error context to provide information about which good program path was taken that lead to an error, e.g: "while parsing filed x of message type y".
- * * Error context should provide detail to the end user who sees the error message and not be used to distinguish between two different errors by client - use sting types like `&'static str` as context type.
- * * Don't add errors or error path information to context - this should be part of the error type, in particular its `Display` and `Error::source` implementation.
- * * Don't add arguments of function call you are rising error from to the context - this should be responsibility of the caller - otherwise would be difficult to 
- * avoid non-`'static` references or allocations on error path or avoid showing sensitive data to end user, e.g. SQL query text or passwords.
- * * Don't put non-`'static` references to context or the error type cannot be propagated back easily or used as `Error::source`.
- */
+This crate provides methods and types to add additional context information to error types.
+
+# Usage
+There are two ways to add context information to your error types by:
+1. adding it directl to value of the error type designed to holt it,
+2. wrapping any type together with the context information and optionally converting this bounde to type that can hold the error and context.
+
+## Adding context to types that can hold context
+If your type can collect context information you can implement `WithContext` trait for it.
+
+### Directly to value
+You can add context to value of your type with `.with_context(context)`.
+
+### To error wrapped in `Result`
+Use `.error_while(context)` method on `Result` type to add context to error value if one implements `WithContext`.
+
+You can also use `in_context_of(context, closure)` function to add context to result of the closure. You can use `?` within the closure to control the flow.
+
+There are also `.error_while_with(context_function)` and `in_context_of_with(context_function, closure)` that will call `context_function` to construct context value in the error path only.
+
+## Adding context to other types
+External error types may not support adding context.
+The `ErrorContext` type can be used to wrap context and error value together. 
+This type implements `WithContext` and adding further context will result in wrapping with another layer of `ErrorContext.
+
+The main use case for this method is to wrap error in one or more layers of context and then convert them to your own error type consuming the error and the context information using `From` trait.
+This enables use of `?` to convert external error types with added context to your error type.
+
+### Directly to value
+You can wrap any type in `ErrorContext` type using `.wrap_context(context)` method.
+
+### To error wrapped in `Result`
+When working with `Result` you can wrap error value in `ErrorContext` using `.wrap_error_while(context)`.
+
+### Using `ErrorNoContext`
+You can also use `.to_root_cause()` directly on error value or `.map_error_context()` on `Result` to wrap error type in `ErrorNoContext`.
+Adding context information to `ErrorNoContext` converts it into `ErrorContext`. 
+`ErrorNoContext` is intended to be used temprarily to enable functions and methods that work with `WithContext` to add context information at later stage.
+
+## Usage example
+In this example we will create our own error type called `MyError`.
+We will wrap extra context information to `std::io::Error` value using `.wrap_error_while(context)` or `.wrap_in_context_of(context, closure)`.
+Finally by implementing `From<ErrorContext<io::Error, C>>` for `MyError` we can use `?` operator to convert to this error to `MyError` persisting the context information added.
+
+```rust
+use error_context::prelude::*;
+use std::io;
+
+enum MyError {
+    IoError(io::Error, &'static str),
+}
+
+impl From<ErrorContext<io::Error, &'static str>> for MyError {
+    fn from(error: ErrorContext<io::Error, &'static str>) -> MyError {
+        MyError::IoError(error.error, error.context)
+    }
+}
+
+fn work_with_file() -> Result<(), MyError> {
+    Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!")).wrap_error_while("working with file")?;
+    Ok(())
+}
+
+match work_with_file().unwrap_err() {
+    MyError::IoError(_, "working with file") => (),
+    _ => panic!("wrong context"),
+}
+
+fn do_stuff() -> Result<(), MyError> {
+    wrap_in_context_of("doing stuff", || {
+        Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))?;
+        Ok(())
+    })?;
+    Ok(())
+}
+
+match do_stuff().unwrap_err() {
+    MyError::IoError(_, "doing stuff") => (),
+    _ => panic!("wrong context"),
+}
+```
+
+# Usage guidelines
+* Use error context to provide information about which good program path was taken that lead to an error, e.g: "while parsing filed x of message type y".
+* Error context should provide detail to the end user who sees the error message and not be used to distinguish between two different errors by client - use `Display` types like `&'static str` as context type.
+* Don't add errors or error path information to context - this should be part of the error type, in particular its `Display` and `Error::source` implementation.
+* Don't add arguments of function call you are rising error from to the context - this should be responsibility of the caller - otherwise would be difficult to
+avoid non-`'static` references or allocations on error path or avoid showing sensitive data to end user, e.g. SQL query text or passwords.
+* Don't put non-`'static` references to context or the error type cannot be propagated back easily or used as `Error::source`.
+*/
 
 use std::error::Error;
 use std::fmt::Debug;
@@ -14,16 +96,19 @@ use std::fmt::{self, Display};
 
 pub mod prelude {
     pub use crate::{
-        in_context_of, in_context_of_with, ErrorContext, ErrorNoContext, MapErrorNoContext,
-        ResultErrorWhile, ResultErrorWhileWrap, ToErrorNoContext, WithContext, WrapContext,
+        in_context_of, in_context_of_with, wrap_in_context_of, wrap_in_context_of_with,
+        ErrorContext, ErrorNoContext, MapErrorNoContext, ResultErrorWhile, ResultErrorWhileWrap,
+        ToErrorNoContext, WithContext, WrapContext,
     };
 }
 
+/// Add context to object
 pub trait WithContext<C> {
     type ContextError;
     fn with_context(self, context: C) -> Self::ContextError;
 }
 
+/// Add context to error carried by another type like `Result`
 pub trait ResultErrorWhile<C> {
     type ContextError;
     fn error_while(self, context: C) -> Self::ContextError;
@@ -49,6 +134,7 @@ where
     }
 }
 
+/// Wrapper for error type that implements `WithContext` trait and therefore enables type to sore context
 #[derive(Debug)]
 pub struct ErrorNoContext<E>(pub E);
 
@@ -84,6 +170,7 @@ impl<E, C> WithContext<C> for ErrorNoContext<E> {
     }
 }
 
+/// Wrap value with `ErrorNoContext`
 pub trait ToErrorNoContext<T> {
     fn to_root_cause(self) -> ErrorNoContext<T>;
 }
@@ -94,6 +181,7 @@ impl<T> ToErrorNoContext<T> for T {
     }
 }
 
+/// Map error caring type by wrapping it's error value in `ErrorNoContext`
 pub trait MapErrorNoContext<O, E> {
     fn map_error_context(self) -> Result<O, ErrorNoContext<E>>;
 }
@@ -104,6 +192,7 @@ impl<O, E> MapErrorNoContext<O, E> for Result<O, E> {
     }
 }
 
+/// Wrap error with context information
 #[derive(Debug)]
 pub struct ErrorContext<E, C> {
     pub error: E,
@@ -144,6 +233,7 @@ impl<E, C, C2> WithContext<C2> for ErrorContext<E, C> {
     }
 }
 
+/// Wrap type in type with context information
 pub trait WrapContext<C> {
     type ContextError;
     fn wrap_context(self, context: C) -> Self::ContextError;
@@ -159,6 +249,7 @@ impl<E, C> WrapContext<C> for E {
     }
 }
 
+/// `Result` extension trait to wrap error value into `ErrorContext` with context information
 pub trait ResultErrorWhileWrap<O, E, C> {
     fn wrap_error_while(self, context: C) -> Result<O, ErrorContext<E, C>>;
     fn wrap_error_while_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
@@ -182,7 +273,7 @@ where
     }
 }
 
-/// Executes closure with with_context context
+/// Executes closure adding context to returned error with `.with_context(context)`
 pub fn in_context_of<O, E, C, CE, B>(context: C, body: B) -> Result<O, CE>
 where
     E: WithContext<C, ContextError = CE>,
@@ -191,7 +282,7 @@ where
     body().map_err(|e| e.with_context(context))
 }
 
-/// Executes closure with with_context context function called on Err variant
+/// Executes closure adding context to returned error with `.with_context(context)` obtaining context from function
 pub fn in_context_of_with<O, E, C, CE, F, M, B>(context: F, body: B) -> Result<O, CE>
 where
     F: FnOnce() -> C,
@@ -201,39 +292,88 @@ where
     body().map_err(|e| e.with_context(context()))
 }
 
+/// Executes closure adding context to returned error by wrapping it in `ErrorContext` with `.wrap_context(context)` crating context in error path
+pub fn wrap_in_context_of_with<O, E, C, F, M, B>(
+    context: F,
+    body: B,
+) -> Result<O, ErrorContext<E, C>>
+where
+    F: FnOnce() -> C,
+    E: WrapContext<C, ContextError = ErrorContext<E, C>>,
+    B: FnOnce() -> Result<O, E>,
+{
+    body().map_err(|e| e.wrap_context(context()))
+}
+
+/// Executes closure adding context to returned error by wrapping it in `ErrorContext` with `.wrap_context(context)`
+pub fn wrap_in_context_of<O, E, C, B>(context: C, body: B) -> Result<O, ErrorContext<E, C>>
+where
+    E: WrapContext<C, ContextError = ErrorContext<E, C>>,
+    B: FnOnce() -> Result<O, E>,
+{
+    body().map_err(|e| e.wrap_context(context))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use assert_matches::*;
+    use std::io;
 
     #[derive(Debug)]
     enum FooError {
-        Foo { context: Option<String> },
-        Bar { num: i32, ctx: Option<String> },
+        Foo {
+            context: Vec<String>,
+        },
+        Bar {
+            num: i32,
+            context: Vec<String>,
+        },
+        IoError {
+            error: io::Error,
+            context: Vec<String>,
+        },
     }
 
     impl WithContext<String> for FooError {
         type ContextError = Self;
-        fn with_context(self, context: String) -> Self {
+        fn with_context(mut self, message: String) -> Self {
             match self {
-                FooError::Foo { .. } => FooError::Foo {
-                    context: Some(context),
-                },
-                FooError::Bar { num, .. } => FooError::Bar {
-                    num,
-                    ctx: Some(context),
-                },
+                FooError::Foo {
+                    ref mut context, ..
+                } => context.push(message),
+                FooError::Bar {
+                    ref mut context, ..
+                } => context.push(message),
+                FooError::IoError {
+                    ref mut context, ..
+                } => context.push(message),
+            }
+            self
+        }
+    }
+
+    impl From<ErrorContext<io::Error, String>> for FooError {
+        fn from(error_context: ErrorContext<io::Error, String>) -> FooError {
+            FooError::IoError {
+                error: error_context.error,
+                context: vec![error_context.context],
             }
         }
     }
 
     #[test]
     fn test_in_type_context() {
-        let err: Result<(), FooError> = Err(FooError::Foo { context: None });
-        assert_matches!(err.error_while("doing stuff".to_string()), Err(FooError::Foo { context: Some(c) }) => assert_eq!(c, "doing stuff".to_string()));
+        let err: Result<(), FooError> = Err(FooError::Foo {
+            context: Vec::new(),
+        });
+        assert_matches!(err.error_while("doing stuff".to_string()), Err(FooError::Foo { context }) => assert_eq!(context, vec!["doing stuff".to_string()]));
 
-        let err: Result<(), FooError> = Err(FooError::Bar { num: 1, ctx: None });
-        assert_matches!(err.error_while("doing stuff".to_string()), Err(FooError::Bar { num: 1, ctx: Some(c) }) => assert_eq!(c, "doing stuff".to_string()));
+        let err: Result<(), FooError> = Err(FooError::Bar {
+            num: 1,
+            context: Vec::new(),
+        });
+        assert_matches!(err.error_while("doing stuff".to_string()), Err(FooError::Bar { num: 1, context }) => assert_eq!(context, vec!["doing stuff".to_string()]));
     }
 
     #[test]
@@ -266,11 +406,26 @@ mod tests {
     #[test]
     fn test_in_context_of_type_context() {
         let err = in_context_of("doing stuff".to_string(), || {
-            let err: Result<(), FooError> = Err(FooError::Foo { context: None });
+            let err: Result<(), FooError> = Err(FooError::Foo {
+                context: Vec::new(),
+            });
             err
         });
 
-        assert_matches!(err.error_while("doing stuff".to_string()), Err(FooError::Foo { context: Some(c) }) => assert_eq!(c, "doing stuff".to_string()));
+        assert_matches!(err.error_while("doing other stuff".to_string()), Err(FooError::Foo { context: c }) => assert_eq!(c, vec!["doing stuff".to_string(), "doing other stuff".to_string()]));
+    }
+
+    #[test]
+    fn test_wrap_in_context_of_type_context() {
+        fn foo() -> Result<(), FooError> {
+            wrap_in_context_of("doing stuff".to_string(), || {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))?;
+                Ok(())
+            })?;
+            Ok(())
+        }
+
+        assert_matches!(foo().error_while("doing other stuff".to_string()), Err(FooError::IoError { context, .. }) => assert_eq!(context, vec!["doing stuff".to_string(), "doing other stuff".to_string()]));
     }
 
     #[test]
