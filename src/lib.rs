@@ -2,27 +2,30 @@
 This crate provides methods and types to add additional context information to error types.
 
 # Usage
-There are two ways to add context information to your error types by:
-1. adding it directl to value of the error type designed to holt it,
-2. wrapping any type together with the context information and optionally converting this bounde to type that can hold the error and context.
+There are two ways to add context information to your error types:
+1. by adding it directly to value of the error type designed to collect it,
+2. wrapping any type together with the context information and optionally converting this bounde to type that can store the error and context.
 
-## Adding context to types that can hold context
-If your type can collect context information you can implement `WithContext` trait for it.
+This crate provides types, traits and extension methods designed to help with the above tasks.
+It is recommended to import all the types and traits via perlude module: `use error_type::prelude::*`.
+
+## Adding context to types that can collect context
+If your type can collect context information you can implement `WithContext` trait for it. By doing so you enable some of the provided extension methods to work with your type.
 
 ### Directly to value
 You can add context to value of your type with `.with_context(context)`.
 
 ### To error wrapped in `Result`
-Use `.error_while(context)` method on `Result` type to add context to error value if one implements `WithContext`.
+Use `.error_while(context)` method on `Result` type to add context to error value of type that implements `WithContext`.
 
-You can also use `in_context_of(context, closure)` function to add context to result of the closure. You can use `?` within the closure to control the flow.
+You can also use `in_context_of(context, closure)` function to add context to result of provided closure. You can use `?` within the closure to control the flow.
 
-There are also `.error_while_with(context_function)` and `in_context_of_with(context_function, closure)` that will call `context_function` to construct context value in the error path only.
+There are also `.error_while_with(context_function)` and `in_context_of_with(context_function, closure)` variants that will call `context_function` to construct context value in the error path only.
 
 ## Adding context to other types
 External error types may not support adding context.
-The `ErrorContext` type can be used to wrap context and error value together. 
-This type implements `WithContext` and adding further context will result in wrapping with another layer of `ErrorContext.
+The `ErrorContext` type can be used to wrap error value and context information together. 
+This type implements `WithContext` and adding further context information will result in wrapping with another layer of `ErrorContext` type.
 
 The main use case for this method is to wrap error in one or more layers of context and then convert them to your own error type consuming the error and the context information using `From` trait.
 This enables use of `?` to convert external error types with added context to your error type.
@@ -36,12 +39,12 @@ When working with `Result` you can wrap error value in `ErrorContext` using `.wr
 ### Using `ErrorNoContext`
 You can also use `.to_root_cause()` directly on error value or `.map_error_context()` on `Result` to wrap error type in `ErrorNoContext`.
 Adding context information to `ErrorNoContext` converts it into `ErrorContext`. 
-`ErrorNoContext` is intended to be used temprarily to enable functions and methods that work with `WithContext` to add context information at later stage.
+`ErrorNoContext` is intended to be used temporairly to enable functions and methods that work with `WithContext` to add context information at later stage.
 
 ## Usage example
 In this example we will create our own error type called `MyError`.
 We will wrap extra context information to `std::io::Error` value using `.wrap_error_while(context)` or `.wrap_in_context_of(context, closure)`.
-Finally by implementing `From<ErrorContext<io::Error, C>>` for `MyError` we can use `?` operator to convert to this error to `MyError` persisting the context information added.
+Finally by implementing `From<ErrorContext<io::Error, C>>` for `MyError` we can use `?` operator to convert this error to `MyError` persisting the context information added.
 
 ```rust
 use error_context::prelude::*;
@@ -58,7 +61,8 @@ impl From<ErrorContext<io::Error, &'static str>> for MyError {
 }
 
 fn work_with_file() -> Result<(), MyError> {
-    Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!")).wrap_error_while("working with file")?;
+    Err(io::Error::new(io::ErrorKind::InvalidInput, "boom!"))
+        .wrap_error_while("working with file")?;
     Ok(())
 }
 
@@ -316,7 +320,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::prelude::*;
     use assert_matches::*;
     use std::io;
 
