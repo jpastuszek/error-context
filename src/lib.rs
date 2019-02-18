@@ -3,8 +3,8 @@ This crate provides methods and types that help with adding additional context i
 
 # Usage
 There are two ways to add context information to your error types:
-1. by adding a field directly to error type designed to collect it,
-2. wrapping any type together with the context information and optionally converting this boundle to type that can store the error and context.
+1. by extending your error type with a filed that will store the context information and then adding context to the error value,
+2. wrapping any error type together with the context information and then converting this boundle to type that can store the error and context.
 
 This crate provides types, traits and extension methods designed to help with the above tasks.
 It is recommended to import all the types and traits via perlude module: `use error_type::prelude::*`.
@@ -93,7 +93,7 @@ match do_stuff().unwrap_err() {
 
 # Usage guidelines
 * Use error context to provide information about which good program path was taken that lead to an error, e.g: "while parsing filed x of message type y".
-* Error context should provide detail for the end user who sees the error message and not be used to distinguish between two different errors by client - use `Display` types like `&'static str` as context type.
+* Error context should provide detail for the end user who sees the error message and not be used to distinguish between two different errors in code - use `Display` types like `&'static str` as context type.
 * Don't add errors or error path information to context - this should be part of the error type, in particular its `Display` and `Error::source` implementation.
 * Don't add arguments of function call you are rising error from to the context - this should be responsibility of the caller - otherwise it would be difficult to
 avoid non-`'static` references or allocations on error path and avoid showing sensitive data to end user, e.g. SQL query text or passwords.
