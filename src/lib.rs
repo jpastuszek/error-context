@@ -1,10 +1,10 @@
 /*!
-This crate provides methods and types to add additional context information to error types.
+This crate provides methods and types that help with adding additional context information to error types.
 
 # Usage
 There are two ways to add context information to your error types:
-1. by adding it directly to value of the error type designed to collect it,
-2. wrapping any type together with the context information and optionally converting this bounde to type that can store the error and context.
+1. by adding a field directly to error type designed to collect it,
+2. wrapping any type together with the context information and optionally converting this boundle to type that can store the error and context.
 
 This crate provides types, traits and extension methods designed to help with the above tasks.
 It is recommended to import all the types and traits via perlude module: `use error_type::prelude::*`.
@@ -13,38 +13,44 @@ It is recommended to import all the types and traits via perlude module: `use er
 If your type can collect context information you can implement `WithContext` trait for it. By doing so you enable some of the provided extension methods to work with your type.
 
 ### Directly to value
-You can add context to value of your type with `.with_context(context)`.
+You can add context to value of your error with `.with_context(context)`.
 
 ### To error wrapped in `Result`
-Use `.error_while(context)` method on `Result` type to add context to error value of type that implements `WithContext`.
+Use `.error_while(context)` method on `Result` value to add context to error value of type that implements `WithContext`.
 
 You can also use `in_context_of(context, closure)` function to add context to result of provided closure. You can use `?` within the closure to control the flow.
 
-There are also `.error_while_with(context_function)` and `in_context_of_with(context_function, closure)` variants that will call `context_function` to construct context value in the error path only.
+There is also `.error_while_with(context_function)` and `in_context_of_with(context_function, closure)` variants that will call `context_function` to construct context value in the error path only.
 
 ## Adding context to other types
 External error types may not support adding context.
 The `ErrorContext` type can be used to wrap error value and context information together. 
 This type implements `WithContext` and adding further context information will result in wrapping with another layer of `ErrorContext` type.
 
-The main use case for this method is to wrap error in one or more layers of context and then convert them to your own error type consuming the error and the context information using `From` trait.
+The main use case for this method is to wrap error in one or more layers of context and then convert them to your own error type consuming 
+the error and the context information using `From` trait.
 This enables use of `?` to convert external error types with added context to your error type.
 
 ### Directly to value
 You can wrap any type in `ErrorContext` type using `.wrap_context(context)` method.
 
 ### To error wrapped in `Result`
-When working with `Result` you can wrap error value in `ErrorContext` using `.wrap_error_while(context)`.
+When working with `Result` value you can wrap error value in `ErrorContext` using `.wrap_error_while(context)`.
+
+There is also `.wrap_error_while_with(context_function)` and `wrap_in_context_of_with(context_function, closure)` variants that will call `context_function` to construct context value in the error path only.
 
 ### Using `ErrorNoContext`
 You can also use `.to_root_cause()` directly on error value or `.map_error_context()` on `Result` to wrap error type in `ErrorNoContext`.
+
 Adding context information to `ErrorNoContext` converts it into `ErrorContext`. 
-`ErrorNoContext` is intended to be used temporairly to enable functions and methods that work with `WithContext` to add context information at later stage.
+`ErrorNoContext` is intended to be used within function scope to enable functions and methods that work with `WithContext` to add 
+context information bafore error is returned.
 
 ## Usage example
 In this example we will create our own error type called `MyError`.
-We will wrap extra context information to `std::io::Error` value using `.wrap_error_while(context)` or `.wrap_in_context_of(context, closure)`.
-Finally by implementing `From<ErrorContext<io::Error, C>>` for `MyError` we can use `?` operator to convert this error to `MyError` persisting the context information added.
+We will wrap extra context information to `std::io::Error` value using `.wrap_error_while(context)` and as another example using `.wrap_in_context_of(context, closure)`.
+Finally by implementing `From<ErrorContext<io::Error, &'static str>>` for `MyError` we can use `?` operator to convert this error to `MyError` 
+persisting the context information added.
 
 ```rust
 use error_context::prelude::*;
@@ -87,11 +93,11 @@ match do_stuff().unwrap_err() {
 
 # Usage guidelines
 * Use error context to provide information about which good program path was taken that lead to an error, e.g: "while parsing filed x of message type y".
-* Error context should provide detail to the end user who sees the error message and not be used to distinguish between two different errors by client - use `Display` types like `&'static str` as context type.
+* Error context should provide detail for the end user who sees the error message and not be used to distinguish between two different errors by client - use `Display` types like `&'static str` as context type.
 * Don't add errors or error path information to context - this should be part of the error type, in particular its `Display` and `Error::source` implementation.
-* Don't add arguments of function call you are rising error from to the context - this should be responsibility of the caller - otherwise would be difficult to
-avoid non-`'static` references or allocations on error path or avoid showing sensitive data to end user, e.g. SQL query text or passwords.
-* Don't put non-`'static` references to context or the error type cannot be propagated back easily or used as `Error::source`.
+* Don't add arguments of function call you are rising error from to the context - this should be responsibility of the caller - otherwise it would be difficult to
+avoid non-`'static` references or allocations on error path and avoid showing sensitive data to end user, e.g. SQL query text or passwords.
+* Don't put non-`'static` references to context or the error value cannot be bubbled up easily or returned as `Error::source`.
 */
 
 use std::error::Error;
@@ -138,7 +144,7 @@ where
     }
 }
 
-/// Wrapper for error type that implements `WithContext` trait and therefore enables type to sore context
+/// Wrap value in `ErrorNoContext` to add more context using `WithContext` trait that will convert it to `ErrorContext`
 #[derive(Debug)]
 pub struct ErrorNoContext<E>(pub E);
 
@@ -196,7 +202,7 @@ impl<O, E> MapErrorNoContext<O, E> for Result<O, E> {
     }
 }
 
-/// Wrap error with context information
+/// Wrap error value together with context information
 #[derive(Debug)]
 pub struct ErrorContext<E, C> {
     pub error: E,
@@ -237,7 +243,7 @@ impl<E, C, C2> WithContext<C2> for ErrorContext<E, C> {
     }
 }
 
-/// Wrap type in type with context information
+/// Wrap value in type with context information
 pub trait WrapContext<C> {
     type ContextError;
     fn wrap_context(self, context: C) -> Self::ContextError;
@@ -253,7 +259,7 @@ impl<E, C> WrapContext<C> for E {
     }
 }
 
-/// `Result` extension trait to wrap error value into `ErrorContext` with context information
+/// `Result` extension trait to wrap error value in `ErrorContext` with given context information
 pub trait ResultErrorWhileWrap<O, E, C> {
     fn wrap_error_while(self, context: C) -> Result<O, ErrorContext<E, C>>;
     fn wrap_error_while_with<F>(self, context: F) -> Result<O, ErrorContext<E, C>>
@@ -277,7 +283,7 @@ where
     }
 }
 
-/// Executes closure adding context to returned error with `.with_context(context)`
+/// Executes closure adding context to returned error value with `.with_context(context)`
 pub fn in_context_of<O, E, C, CE, B>(context: C, body: B) -> Result<O, CE>
 where
     E: WithContext<C, ContextError = CE>,
@@ -286,7 +292,7 @@ where
     body().map_err(|e| e.with_context(context))
 }
 
-/// Executes closure adding context to returned error with `.with_context(context)` obtaining context from function
+/// Executes closure adding context to returned error value with `.with_context(context)` obtaining context by calling given function on error path
 pub fn in_context_of_with<O, E, C, CE, F, M, B>(context: F, body: B) -> Result<O, CE>
 where
     F: FnOnce() -> C,
@@ -296,7 +302,16 @@ where
     body().map_err(|e| e.with_context(context()))
 }
 
-/// Executes closure adding context to returned error by wrapping it in `ErrorContext` with `.wrap_context(context)` crating context in error path
+/// Executes closure adding context to returned error value by wrapping it in `ErrorContext` with `.wrap_context(context)`
+pub fn wrap_in_context_of<O, E, C, B>(context: C, body: B) -> Result<O, ErrorContext<E, C>>
+where
+    E: WrapContext<C, ContextError = ErrorContext<E, C>>,
+    B: FnOnce() -> Result<O, E>,
+{
+    body().map_err(|e| e.wrap_context(context))
+}
+
+/// Executes closure adding context to returned error value by wrapping it in `ErrorContext` with `.wrap_context(context)` obtaining context by calling given function on error path
 pub fn wrap_in_context_of_with<O, E, C, F, M, B>(
     context: F,
     body: B,
@@ -307,15 +322,6 @@ where
     B: FnOnce() -> Result<O, E>,
 {
     body().map_err(|e| e.wrap_context(context()))
-}
-
-/// Executes closure adding context to returned error by wrapping it in `ErrorContext` with `.wrap_context(context)`
-pub fn wrap_in_context_of<O, E, C, B>(context: C, body: B) -> Result<O, ErrorContext<E, C>>
-where
-    E: WrapContext<C, ContextError = ErrorContext<E, C>>,
-    B: FnOnce() -> Result<O, E>,
-{
-    body().map_err(|e| e.wrap_context(context))
 }
 
 #[cfg(test)]
