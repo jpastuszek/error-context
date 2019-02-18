@@ -20,7 +20,7 @@ Use `.error_while(context)` method on `Result` value to add context to error val
 
 You can also use `in_context_of(context, closure)` function to add context to result of provided closure. You can use `?` within the closure to control the flow.
 
-There is also `.error_while_with(context_function)` and `in_context_of_with(context_function, closure)` variants that will call `context_function` to construct context value in the error path only.
+There is also `.error_while_with(context_function)` and `in_context_of_with(context_function, closure)` variants that can be used to defer construction of context to error path.
 
 ## Adding context to other types
 External error types may not support adding context.
@@ -37,7 +37,7 @@ You can wrap any type in `ErrorContext` type using `.wrap_context(context)` meth
 ### To error wrapped in `Result`
 When working with `Result` value you can wrap error value in `ErrorContext` using `.wrap_error_while(context)`.
 
-There is also `.wrap_error_while_with(context_function)` and `wrap_in_context_of_with(context_function, closure)` variants that will call `context_function` to construct context value in the error path only.
+There is also `.wrap_error_while_with(context_function)` and `wrap_in_context_of_with(context_function, closure)` variants that can be used to defer construction of context to error path.
 
 ### Using `ErrorNoContext`
 You can also use `.to_root_cause()` directly on error value or `.map_error_context()` on `Result` to wrap error type in `ErrorNoContext`.
@@ -104,6 +104,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::fmt::{self, Display};
 
+/// Includes `WithContext` trait, `ErrorContext`, `ErrorNoContext` types and related conversion traits and `*in_context_of*` functions
 pub mod prelude {
     pub use crate::{
         in_context_of, in_context_of_with, wrap_in_context_of, wrap_in_context_of_with,
