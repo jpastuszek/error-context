@@ -313,7 +313,7 @@ where
 }
 
 /// Executes closure adding context to returned error value by wrapping it in `ErrorContext` with `.wrap_context(context)` obtaining context by calling given function on error path
-pub fn wrap_in_context_of_with<O, E, C, F, M, B>(
+pub fn wrap_in_context_of_with<O, E, C, F, B>(
     context: F,
     body: B,
 ) -> Result<O, ErrorContext<E, C>>
