@@ -1,6 +1,6 @@
 [package]
 name = "error-context"
-version = "0.1.1"
+version = "0.1.2-alpha.0"
 authors = ["Jakub Pastuszek <jpastuszek@protonmail.com>"]
 edition = "2018"
 description = "Methods and types that help with adding additional context information to error types"
