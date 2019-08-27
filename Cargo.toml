@@ -2,13 +2,14 @@
 name = "error-context"
 version = "0.1.2-alpha.0"
 authors = ["Jakub Pastuszek <jpastuszek@protonmail.com>"]
-edition = "2018"
 description = "Methods and types that help with adding additional context information to error types"
 repository = "https://github.com/jpastuszek/error-context"
+documentation = "https://docs.rs/error-context"
 readme = "README.md"
 keywords = ["error", "context"]
 categories = ["rust-patterns"]
 license = "MIT"
+edition = "2018"
 
 [dependencies]
 
