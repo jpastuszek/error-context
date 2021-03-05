@@ -3,7 +3,7 @@ This crate provides methods and types that help with adding additional context i
 
 # Usage
 There are two ways to add context information to your error types:
-1. by extending your error type with a filed that will store the context information and then adding context to the error value,
+1. by extending your error type with a field that will store the context information and then adding context to the error value,
 2. wrapping any error type together with the context information and then converting this boundle to type that can store the error and context.
 
 This crate provides types, traits and extension methods designed to help with the above tasks.
